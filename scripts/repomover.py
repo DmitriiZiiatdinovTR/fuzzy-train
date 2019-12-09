@@ -2,17 +2,16 @@ import requests
 import subprocess, shlex
 import os
 
-gitlab_key = '<SECURE_KEY_HERE>' # your gitlab key
-gitlab_base_url = 'https://git.sami.int.thomsonreuters.com/api/v4/'
+gitlab_key = '<SECRET>' # your gitlab key
+gitlab_base_url = 'https://git.sami.int.thomsonreuters.com/api/v4'
 
-github_key = '<SECURE_KEY_HERE>' # github key with SSO enabled
-github_base_url = 'https://api.github.com/'
-github_repos_tr = github_base_url + 'repos/tr/'
-github_org_repos_url = github_base_url + 'orgs/tr/repos'
-#N.B. in order to push data to github secure ssh key should be added to github with SSO enabled!
+github_key = '<SECRET>' # github key with SSO enabled
+github_base_url = 'https://api.github.com'
+github_org_repos_url = 'https://api.github.com/orgs/tr/repos'
+#N.B. in order to push data to github secure ssh key should be added to github with SSO enabled
 
 def grabAllRepos(groupName):
-    url = gitlab_base_url + 'groups/' + groupName + '?private_token=' + gitlab_key
+    url = f'gitlab_base_url/groups/{groupName}??private_token={gitlab_key}'    
     print('\n\nRetrieving projects from ' + url)
     response = requests.get(url, verify = False)
     if not response:
@@ -42,7 +41,7 @@ def grabAllRepos(groupName):
 
 def checkRepoExists(repoName):
     print(f'Checking if github repo {repoName} already exists')
-    url = github_repos_tr + repoName + '?access_token=' + github_key    
+    url = f'{github_base_url}/repos/tr/{repoName}?access_token={github_key}'    
     response = requests.get(url, verify = False)
     foundRepositoryId = response.json().get("id", -1)
     result = foundRepositoryId > 0
@@ -53,7 +52,7 @@ def checkRepoExists(repoName):
 
 def generateNewRepo(repoName, repoDescription):
     print(f'Creating new github repo {repoName} ({repoDescription})')
-    url = github_org_repos_url + '?access_token=' + github_key
+    url = f'{github_base_url}/orgs/tr/repos?access_token={github_key}'    
     payload = {
         "name": repoName,
         "description": repoDescription,
@@ -65,6 +64,16 @@ def generateNewRepo(repoName, repoDescription):
     print(response)
     print(response.text)
 
+SOLT_TEAM_ID = 3458474
+def grantAdminPermissionToSOLT(repoName):
+    print("Granting admin permission for the team to " + repoName)
+    url = f"https://api.github.com/teams/{SOLT_TEAM_ID}/repos/tr/{repoName}?access_token={github_key}"
+    payload = {
+        "permission": "admin"
+    }
+    response = requests.put(url, json=payload, verify = False)
+    print(response) #<Response [204]> is good
+
 def generateNewRepos(groupPath, descriptions):
     curdir = os.getcwd()
     for project in os.listdir(groupPath):
@@ -75,23 +84,30 @@ def generateNewRepos(groupPath, descriptions):
             print('repo does not exist, creting new')
             print(f"generate new github repo: {newProjectName}")
             generateNewRepo(newProjectName, descriptions.get(project, ''))
+            grantAdminPermissionToSOLT(newProjectName)
 
 def updateAndPush(groupPath):
     curdir = os.getcwd()
     for project in os.listdir(groupPath):
+        newRepoName = groupPath + '_' + project
+        
+        #this is required only if projects were created with the wrong permission:        
+        #grantAdminPermissionToSOLT(newRepoName)
+        
         print('Updating and pushing ' + project)
         full_project_path = curdir + os.path.sep + groupPath + os.path.sep + project
-        print("update and push: " + full_project_path)
+                
         os.chdir(full_project_path)        
-        print('git fetch')        
+        print('git fetch')
         subprocess.run('git fetch origin')
         print('git pull')
         subprocess.run('git pull origin')
-        newRepoName = groupPath + '_' + project        
+        
         print('adding remote branch')
-        cmd = shlex.split(f'git remote add github org-47003210@github.com:tr/{newRepoName}.git')        
+        cmd = shlex.split(f'git remote add github org-47003210@github.com:tr/{newRepoName}.git')
         subprocess.run(cmd)
-        print('git push')
+        
+        print('git push github')
         subprocess.run('git push github --mirror')
 
 print('Starting getrepos process..')
@@ -99,4 +115,3 @@ descriptions = grabAllRepos('modern-ellis')
 generateNewRepos('modern-ellis', descriptions)
 updateAndPush('modern-ellis')
 print('\nDone')
-
