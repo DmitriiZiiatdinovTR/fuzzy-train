@@ -2,16 +2,15 @@ import requests
 import subprocess, shlex
 import os
 
-gitlab_key = '<SECRET>' # your gitlab key
+gitlab_key = '<secret>' # your gitlab key
 gitlab_base_url = 'https://git.sami.int.thomsonreuters.com/api/v4'
 
-github_key = '<SECRET>' # github key with SSO enabled
+github_key = '<secret>' # github key with SSO enabled
 github_base_url = 'https://api.github.com'
 github_org_repos_url = 'https://api.github.com/orgs/tr/repos'
-#N.B. in order to push data to github secure ssh key should be added to github with SSO enabled
 
 def grabAllRepos(groupName):
-    url = f'gitlab_base_url/groups/{groupName}??private_token={gitlab_key}'    
+    url = f'{gitlab_base_url}/groups/{groupName}?private_token={gitlab_key}'    
     print('\n\nRetrieving projects from ' + url)
     response = requests.get(url, verify = False)
     if not response:
@@ -104,14 +103,14 @@ def updateAndPush(groupPath):
         subprocess.run('git pull origin')
         
         print('adding remote branch')
-        cmd = shlex.split(f'git remote add github org-47003210@github.com:tr/{newRepoName}.git')
-        subprocess.run(cmd)
+        subprocess.run(f'git remote rm github')
+        subprocess.run(f'git remote add github https://org-47003210:{github_key}@github.com/tr/{newRepoName}.git')
         
         print('git push github')
         subprocess.run('git push github --mirror')
 
 print('Starting getrepos process..')
-descriptions = grabAllRepos('modern-ellis')
-generateNewRepos('modern-ellis', descriptions)
+#descriptions = grabAllRepos('modern-ellis')
+#generateNewRepos('modern-ellis', descriptions)
 updateAndPush('modern-ellis')
 print('\nDone')
